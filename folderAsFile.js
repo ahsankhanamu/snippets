@@ -1,6 +1,29 @@
 const fs = require('fs');
 const path = require('path');
 
+// List of known binary file extensions
+const BINARY_EXTENSIONS = [
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.bmp',
+  '.ico',
+  '.webp',
+  '.mp3',
+  '.mp4',
+  '.zip',
+  '.tar',
+  '.gz',
+  '.pdf',
+];
+
+// Function to check if a file is binary
+function isBinaryFile(filePath) {
+  const extension = path.extname(filePath).toLowerCase();
+  return BINARY_EXTENSIONS.includes(extension);
+}
+
 // Function to generate a bash script for replicating the folder structure and content
 function generateReplicationScript(folderPath, outputScript, ignoreList = []) {
   // Clear the output file at the beginning
@@ -15,6 +38,9 @@ function generateReplicationScript(folderPath, outputScript, ignoreList = []) {
   if (!ignoreList.includes(outputScriptName)) {
     ignoreList.push(outputScriptName);
   }
+
+  // List to store skipped binary files and their directories
+  const skippedFiles = [];
 
   // Recursive function to traverse the directory
   function traverseDirectory(currentPath, indent = '') {
@@ -35,6 +61,12 @@ function generateReplicationScript(folderPath, outputScript, ignoreList = []) {
         // Recursively traverse the directory
         traverseDirectory(itemPath, indent);
       } else if (stat.isFile()) {
+        // Skip binary files
+        if (isBinaryFile(itemPath)) {
+          skippedFiles.push(itemPath); // Log skipped binary file
+          continue;
+        }
+
         // Write file content using a heredoc in the bash script
         scriptContent += `\n${indent}cat << 'EOF' > "${itemPath}"\n`;
         try {
@@ -54,7 +86,15 @@ function generateReplicationScript(folderPath, outputScript, ignoreList = []) {
   // Append the script content to the output file
   fs.appendFileSync(outputScript, scriptContent);
 
-  console.log(`Folder as a file script generated at ${outputScript}`);
+  // Log skipped binary files and their directories
+  if (skippedFiles.length > 0) {
+    console.log('Skipped binary files:');
+    skippedFiles.forEach((file) => {
+      console.log(`- ${file}`);
+    });
+  }
+
+  console.log(`Replication script generated at ${outputScript}`);
   console.log('Make the script executable with: chmod +x ' + outputScript);
 }
 
@@ -69,9 +109,7 @@ Arguments:
   [ignore-list]    Comma-separated list of files/folders to ignore (optional).
 
 Example:
-  node generateReplicationScript.js ./my-folder folderAsFile.sh node_modules,.git
-
-Note: 'node_modules', '.git', 'package-lock.json' are always skipped.
+  node generateReplicationScript.js ./my-folder replicate.sh node_modules,.git
 `);
 }
 
